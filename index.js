@@ -15,7 +15,6 @@ app.use(cors());
 app.use(express.json());
 
 // --- DEBUG: Middleware para loguear cada request ---
-// --- DEBUG: Middleware para loguear cada request ---
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   
@@ -67,7 +66,10 @@ app.get('/personas', async (req, res) => {
 });
 
 
-const buscarPersonaPorNombre = async (nombre) => {
+// Buscar personas por nombre o apellido (patrón en el texto)
+app.get('/personas/:nombre', async (req, res) => {
+  const { nombre } = req.params;
+
   try {
     const personas = await Persona.find({
       $or: [
@@ -75,8 +77,29 @@ const buscarPersonaPorNombre = async (nombre) => {
         { apellidos: { $regex: nombre, $options: 'i' } }
       ]
     });
-    
-    return personas.length > 0 ? personas[0] : null;
+
+    if (personas.length === 0) {
+      return res.status(404).json({ message: `No se encontraron personas con "${nombre}"` });
+    }
+
+    res.json(personas); // devuelve todo el objeto persona
+  } catch (err) {
+    console.error('Error buscando personas:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+
+const buscarIdPersonaPorNombre = async (nombre) => {
+  try {
+    const persona = await Persona.findOne({
+      $or: [
+        { nombres: { $regex: nombre, $options: 'i' } },
+        { apellidos: { $regex: nombre, $options: 'i' } }
+      ]
+    }).select('_id'); // solo traer el campo _id
+
+    return persona ? persona._id : null; // devolver solo el id o null si no hay match
   } catch (error) {
     console.error('Error buscando persona:', error);
     throw error;
@@ -84,74 +107,32 @@ const buscarPersonaPorNombre = async (nombre) => {
 };
 
 // Crear contrato
-// Crear contrato
 app.post('/contratos', async (req, res) => {
   try {
-    const {
-      nombrePrestamista,
-      nombrePrestatario,
-      monto,
-      plazo,
-      tasaInteres,
-      fecha,
-      estado,
-      observaciones
-    } = req.body;
-
-    // Buscar el prestamista por nombre
-    const prestamista = await buscarPersonaPorNombre(nombrePrestamista);
-    if (!prestamista) {
-      return res.status(404).json({ 
-        error: `Prestamista "${nombrePrestamista}" no encontrado` 
-      });
-    }
-
-    // Buscar el prestatario por nombre
-    const prestatario = await buscarPersonaPorNombre(nombrePrestatario);
-    if (!prestatario) {
-      return res.status(404).json({ 
-        error: `Prestatario "${nombrePrestatario}" no encontrado` 
-      });
-    }
-
-    // Crear el objeto contrato con los IDs correctos
-    const contratoData = {
-      idPrestamista: prestamista._id,
-      idPrestatario: prestatario._id,
-      monto,
-      plazo,
-      tasaInteres,
-      fecha,
-      estado,
-      observaciones
-    };
-
-    // Guardar el contrato
-    const contrato = new Contrato(contratoData);
-    const result = await contrato.save();
-    
-    console.log('Contrato creado:', result);
-    res.status(201).json(result);
-
-  } catch (err) {
-    console.error('Error creando contrato:', err);
-    res.status(400).json({ error: err.message });
+    const contrato = new Contrato(req.body);
+    await contrato.save();
+    res.status(201).json({
+      message: 'Contrato creado con éxito',
+      contrato
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
 });
-
-// Obtener contratos
+// Obtener todos los contratos
 app.get('/contratos', async (req, res) => {
   try {
     const contratos = await Contrato.find()
-      .populate('idPrestamista', 'nombres apellidos dni celular')
-      .populate('idPrestatario', 'nombres apellidos dni celular');
-    console.log(`Se obtuvieron ${contratos.length} contratos`);
+      .populate('prestamistas.persona', 'nombres apellidos dni celular') // trae datos del prestamista
+      .populate('prestatarios.persona', 'nombres apellidos dni celular'); // trae datos del prestatario
+
     res.json(contratos);
   } catch (err) {
     console.error('Error obteniendo contratos:', err);
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // --- Escuchar puerto ---
 app.listen(PORT, () => {
