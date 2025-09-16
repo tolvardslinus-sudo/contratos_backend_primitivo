@@ -120,7 +120,7 @@ app.post('/contratos', async (req, res) => {
   }
 });
 // Obtener todos los contratos
-app.get('/contratos', async (req, res) => {
+app.get('/allcontratos', async (req, res) => {
   try {
     const contratos = await Contrato.find()
       .populate('prestamistas.persona', 'nombres apellidos dni celular') // trae datos del prestamista

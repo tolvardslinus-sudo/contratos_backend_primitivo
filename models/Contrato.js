@@ -13,7 +13,7 @@ const contratoSchema = new mongoose.Schema({
       monto: { type: Number } // opcional: cuánto recibe cada uno (puede usarse si se reparte)
     }
   ],
-  montoTotal: { type: Number }, // suma de todos los montos
+  montoTotal: { type: Number ,default:0 }, // suma de todos los montos
   plazo: { type: Number, required: true },
   tasaInteres: { type: Number, required: true },
   fecha: { type: String, required: true },
@@ -25,6 +25,13 @@ const contratoSchema = new mongoose.Schema({
 contratoSchema.pre('save', function (next) {
   const montoTotal = this.prestamistas.reduce((acc, p) => acc + p.monto, 0);
   this.montoTotal = montoTotal;
+  next();
+});
+contratoSchema.pre('insertMany', function(next, docs) {
+  docs.forEach(doc => {
+    const montoTotal = doc.prestamistas.reduce((acc, p) => acc + p.monto, 0);
+    doc.montoTotal = montoTotal;
+  });
   next();
 });
 
