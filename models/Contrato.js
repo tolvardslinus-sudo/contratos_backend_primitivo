@@ -1,8 +1,9 @@
 const mongoose = require('mongoose');
 const Pago = require('./Cuota');
+const Counter = require('./Counter');
 
 const contratoSchema = new mongoose.Schema({
-  id:{type: Number, required: true},
+  codigo: { type: String, unique: true },
   prestamistas: [
     {
       persona: { type: mongoose.Schema.Types.ObjectId, ref: 'Persona', required: true },
@@ -24,19 +25,30 @@ const contratoSchema = new mongoose.Schema({
 });
 
 // Middleware: calcular montoTotal antes de guardar
-contratoSchema.pre('save', function (next) {
-  console.log("entro a presabe")
-  const montoTotal = this.prestamistas.reduce((acc, p) => acc + p.monto, 0);
-  this.montoTotal = montoTotal;
-  next();
+contratoSchema.pre('save', async function (next) {
+  console.log("entro a presave");
+  try {
+    // 🔹 1. Generar código SOLO si es nuevo
+    if (this.isNew) {
+      const counter = await Counter.findOneAndUpdate(
+        { nombre: 'contratos' },
+        { $inc: { seq: 1 } },
+        { new: true, upsert: true }
+      );
+
+      this.codigo = String(counter.seq).padStart(3, '0');
+    }
+
+    // 🔹 2. Calcular montoTotal (tu lógica actual)
+    const montoTotal = this.prestamistas.reduce((acc, p) => acc + p.monto, 0);
+    this.montoTotal = montoTotal;
+
+    next();
+  } catch (err) {
+    next(err);
+  }
 });
-contratoSchema.pre('insertMany', function(next, docs) {
-  docs.forEach(doc => {
-    const montoTotal = doc.prestamistas.reduce((acc, p) => acc + p.monto, 0);
-    doc.montoTotal = montoTotal;
-  });
-  next();
-});
+
 // Después de guardar un contrato, generar sus cuotas
 
 
