@@ -105,6 +105,39 @@ app.delete('/personas/:id', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+//actualizar Peronas
+
+app.put('/personas/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const personaActualizada = await Persona.findByIdAndUpdate(
+      id,
+      req.body,
+      {
+        new: true,        // devuelve el documento actualizado
+        runValidators: true // aplica validaciones del schema
+      }
+    );
+
+    if (!personaActualizada) {
+      return res.status(404).json({ message: 'Persona no encontrada' });
+    }
+
+    res.json({
+      message: 'Persona actualizada correctamente',
+      persona: personaActualizada
+    });
+
+  } catch (error) {
+    console.error('Error actualizando persona:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+
+//Contratos
 app.delete('/contratos/:id', async (req, res) => {
   try {
     const { id } = req.params;
