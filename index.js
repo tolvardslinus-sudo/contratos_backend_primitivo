@@ -135,56 +135,26 @@ app.put('/personas/:id', async (req, res) => {
   }
 });
 
-
+///
 
 //Contratos
-app.delete('/contratos/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const contrato = await Contrato.findByIdAndDelete(id);
-
-    if (!contrato) {
-      return res.status(404).json({ message: 'Contrato no encontrado' });
-    }
-
-    res.json({ message: 'Contrato eliminado correctamente', contrato });
-  } catch (error) {
-    console.error('Error eliminando contrato:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-
-const buscarIdPersonaPorNombre = async (nombre) => {
-  try {
-    const persona = await Persona.findOne({
-      $or: [
-        { nombres: { $regex: nombre, $options: 'i' } },
-        { apellidos: { $regex: nombre, $options: 'i' } }
-      ]
-    }).select('_id'); // solo traer el campo _id
-
-    return persona ? persona._id : null; // devolver solo el id o null si no hay match
-  } catch (error) {
-    console.error('Error buscando persona:', error);
-    throw error;
-  }
-};
 
 // Crear contrato
 app.post('/contratos', async (req, res) => {
   try {
     const contrato = new Contrato(req.body);
     await contrato.save();
+
     res.status(201).json({
-      message: 'Contrato creado con éxito',
+      message: 'Contrato creado',
       contrato
     });
   } catch (error) {
+    console.error(error);
     res.status(400).json({ error: error.message });
   }
 });
+
 
 // Obtener todos los contratos
 app.get('/allcontratos', async (req, res) => {
@@ -199,6 +169,127 @@ app.get('/allcontratos', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+app.get('/contratos/:id', async (req, res) => {
+  try {
+    const contrato = await Contrato.findById(req.params.id)
+      .populate('prestamistas.persona')
+      .populate('prestatarios.persona');
+
+    if (!contrato) {
+      return res.status(404).json({ message: 'Contrato no encontrado' });
+    }
+
+    res.json(contrato);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/contratos/codigo/:codigo', async (req, res) => {
+  try {
+    const contrato = await Contrato.findOne({ codigo: req.params.codigo })
+      .populate('prestamistas.persona')
+      .populate('prestatarios.persona');
+
+    if (!contrato) {
+      return res.status(404).json({ message: 'Contrato no encontrado' });
+    }
+
+    res.json(contrato);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/contratos/buscar/:nombre', async (req, res) => {
+  try {
+    const { nombre } = req.params;
+
+    const contratos = await Contrato.find()
+      .populate({
+        path: 'prestamistas.persona',
+        match: {
+          $or: [
+            { nombres: { $regex: nombre, $options: 'i' } },
+            { apellidos: { $regex: nombre, $options: 'i' } }
+          ]
+        }
+      })
+      .populate({
+        path: 'prestatarios.persona',
+        match: {
+          $or: [
+            { nombres: { $regex: nombre, $options: 'i' } },
+            { apellidos: { $regex: nombre, $options: 'i' } }
+          ]
+        }
+      });
+
+    // filtrar solo contratos donde hubo match
+    const filtrados = contratos.filter(c =>
+      c.prestamistas.some(p => p.persona) ||
+      c.prestatarios.some(p => p.persona)
+    );
+
+    res.json(filtrados);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+app.put('/contratos/:id', async (req, res) => {
+  try {
+    const data = req.body;
+
+    // recalcular montoTotal si viene prestamistas
+    if (data.prestamistas) {
+      data.montoTotal = data.prestamistas.reduce((acc, p) => acc + p.monto, 0);
+    }
+
+    const contrato = await Contrato.findByIdAndUpdate(
+      req.params.id,
+      data,
+      { new: true, runValidators: true }
+    );
+
+    if (!contrato) {
+      return res.status(404).json({ message: 'Contrato no encontrado' });
+    }
+
+    res.json({
+      message: 'Contrato actualizado',
+      contrato
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+app.delete('/contratos/:id', async (req, res) => {
+  try {
+    const contrato = await Contrato.findByIdAndDelete(req.params.id);
+
+    if (!contrato) {
+      return res.status(404).json({ message: 'Contrato no encontrado' });
+    }
+
+    res.json({
+      message: 'Contrato eliminado',
+      contrato
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+
+
+
 
 
 // --- Escuchar puerto ---
